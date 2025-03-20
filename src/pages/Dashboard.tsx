@@ -1,53 +1,15 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { PlusIcon } from '@heroicons/react/24/solid'
-
-// This will be replaced with actual data from API/context
-const MOCK_CUSTOMERS = [
-  {
-    id: '1',
-    name: 'Acme Inc',
-    healthStatus: 'Good',
-    renewalDate: '2025-06-15',
-    currentARR: 120000,
-    owner: 'James McArthur',
-  },
-  {
-    id: '2',
-    name: 'Globex Corporation',
-    healthStatus: 'At Risk',
-    renewalDate: '2025-03-28',
-    currentARR: 85000,
-    owner: 'James McArthur',
-  },
-  {
-    id: '3',
-    name: 'Initech',
-    healthStatus: 'Attention Needed',
-    renewalDate: '2025-08-01',
-    currentARR: 50000,
-    owner: 'James McArthur',
-  },
-  {
-    id: '4',
-    name: 'Massive Dynamic',
-    healthStatus: 'Good',
-    renewalDate: '2025-05-12',
-    currentARR: 220000,
-    owner: 'James McArthur',
-  },
-  {
-    id: '5',
-    name: 'Stark Industries',
-    healthStatus: 'Good',
-    renewalDate: '2025-11-30',
-    currentARR: 175000,
-    owner: 'James McArthur',
-  },
-]
+import { useCustomerSummaries, useExportToCSV, useExportToJSON } from '../hooks'
 
 const Dashboard = () => {
-  const [customers] = useState(MOCK_CUSTOMERS)
+  // Replace static mock data with React Query
+  const { data: customers = [], isLoading, error } = useCustomerSummaries();
+  
+  // Export mutations
+  const exportToCSV = useExportToCSV();
+  const exportToJSON = useExportToJSON();
   
   // Health status badge colors
   const healthStatusColors = {
@@ -76,6 +38,34 @@ const Dashboard = () => {
     }).format(date)
   }
 
+  // Handle exports
+  const handleExportCSV = () => {
+    exportToCSV.mutate({ data: customers, filename: 'customers.csv' });
+  };
+
+  const handleExportJSON = () => {
+    exportToJSON.mutate({ data: customers, filename: 'customers.json' });
+  };
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500"></div>
+      </div>
+    )
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="bg-danger-50 border border-danger-200 text-danger-800 px-4 py-3 rounded relative">
+        <strong className="font-bold">Error: </strong>
+        <span className="block sm:inline">Failed to load customer data.</span>
+      </div>
+    )
+  }
+
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
@@ -85,13 +75,29 @@ const Dashboard = () => {
             Manage and monitor your customer portfolio
           </p>
         </div>
-        <Link
-          to="/customers/new"
-          className="btn btn-primary flex items-center"
-        >
-          <PlusIcon className="h-5 w-5 mr-1" />
-          Add Customer
-        </Link>
+        <div className="flex space-x-2">
+          <button
+            onClick={handleExportCSV}
+            className="btn btn-secondary text-sm"
+            disabled={customers.length === 0}
+          >
+            Export CSV
+          </button>
+          <button
+            onClick={handleExportJSON}
+            className="btn btn-secondary text-sm"
+            disabled={customers.length === 0}
+          >
+            Export JSON
+          </button>
+          <Link
+            to="/customers/new"
+            className="btn btn-primary flex items-center"
+          >
+            <PlusIcon className="h-5 w-5 mr-1" />
+            Add Customer
+          </Link>
+        </div>
       </div>
 
       {/* Stats */}
@@ -205,8 +211,17 @@ const Dashboard = () => {
 
       {/* Customer Table */}
       <div className="bg-white shadow rounded-lg overflow-hidden">
-        <div className="px-4 py-5 border-b border-gray-200 sm:px-6">
+        <div className="px-4 py-5 border-b border-gray-200 sm:px-6 flex justify-between items-center">
           <h3 className="text-lg leading-6 font-medium text-gray-900">Customers</h3>
+          
+          {/* Basic search and filter - to be enhanced later */}
+          <div className="flex space-x-2">
+            <input
+              type="text"
+              placeholder="Search customers..."
+              className="form-input text-sm rounded-md border-gray-300"
+            />
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
@@ -245,40 +260,48 @@ const Dashboard = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {customers.map((customer) => (
-                <tr 
-                  key={customer.id}
-                  className="hover:bg-gray-50 cursor-pointer"
-                  onClick={() => {
-                    // This will be replaced with React Router navigation
-                    window.location.href = `/customers/${customer.id}`
-                  }}
-                >
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-primary-600">
-                      {customer.name}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span
-                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        healthStatusColors[customer.healthStatus]
-                      }`}
-                    >
-                      {customer.healthStatus}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {formatDate(customer.renewalDate)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {formatCurrency(customer.currentARR)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {customer.owner}
+              {customers.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                    No customers found. Add your first customer to get started.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                customers.map((customer) => (
+                  <tr 
+                    key={customer.id}
+                    className="hover:bg-gray-50 cursor-pointer"
+                    onClick={() => {
+                      // Replace with React Router navigation
+                      window.location.href = `/customers/${customer.id}`
+                    }}
+                  >
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-primary-600">
+                        {customer.name}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          healthStatusColors[customer.healthStatus]
+                        }`}
+                      >
+                        {customer.healthStatus}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {formatDate(customer.renewalDate)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {formatCurrency(customer.currentARR)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {customer.owner}
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
