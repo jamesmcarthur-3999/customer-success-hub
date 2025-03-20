@@ -1,162 +1,135 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { ArrowLeftIcon } from '@heroicons/react/24/outline'
-import { Customer } from '../types/customer'
+import { Customer, HealthStatus } from '../types/customer'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
-
-// Mock data - same as in CustomerDetails
-const MOCK_CUSTOMERS: { [key: string]: Customer } = {
-  '1': {
-    id: '1',
-    name: 'Acme Inc',
-    createdAt: '2024-01-15T12:00:00Z',
-    updatedAt: '2024-03-10T14:30:00Z',
-    currentOwner: 'James McArthur',
-    accountDetails: {
-      healthStatus: 'Good',
-      renewalDate: '2025-06-15',
-      renewalQuarter: '2025-Q2',
-      currentARR: 120000,
-      employees: 500,
-      mkCompanyEmployees: 450,
-      productsUsed: ['Scoring', 'Copilot'],
-      primaryUseCase: 'Lead qualification and account-level engagement',
-      inCoreWorkflow: true,
-      customerNotified: true
-    },
-    keyStakeholders: [
-      {
-        name: 'Jane Smith',
-        title: 'VP of Marketing',
-        role: 'Executive Sponsor',
-        email: 'jane.smith@acme.com'
-      },
-      {
-        name: 'John Doe',
-        title: 'Marketing Operations Manager',
-        role: 'Primary Contact',
-        email: 'john.doe@acme.com'
-      }
-    ],
-    executiveSummary: 'Acme Inc has been a customer since 2024 and is using our platform for lead qualification and account-based marketing initiatives. They have shown strong adoption across their marketing team and are seeing positive results with a 25% increase in qualified leads.',
-    valueRealization: [
-      'Increased lead qualification efficiency by 30%',
-      'Improved sales-marketing alignment',
-      'Reduced time to qualify leads by 45%',
-      'Better targeting for ABM campaigns'
-    ],
-    activeProjects: [
-      {
-        name: 'Copilot Rollout',
-        description: 'Expanding Copilot usage across the entire marketing team',
-        status: 'In Progress',
-        targetDate: '2025-04-15'
-      },
-      {
-        name: 'Data Integration Enhancement',
-        description: 'Improving data flow from their CRM to enhance scoring accuracy',
-        status: 'Not Started',
-        targetDate: '2025-05-01'
-      }
-    ],
-    risks: [
-      {
-        description: 'New marketing leadership may re-evaluate tools',
-        impact: 'Medium',
-        mitigation: 'Schedule executive briefing with new CMO in Q2',
-        status: 'Active'
-      }
-    ],
-    actionItems: [
-      {
-        description: 'Schedule Q2 business review',
-        owner: 'MadKudu',
-        deadline: '2025-04-01',
-        status: 'Not Started'
-      },
-      {
-        description: 'Provide onboarding for new team members',
-        owner: 'Joint',
-        deadline: '2025-03-29',
-        status: 'In Progress'
-      }
-    ],
-    additionalNotes: 'Acme is considering expanding usage to their APAC region in Q3 2025.',
-    communications: [
-      {
-        type: 'Call',
-        date: '2025-03-10T14:00:00Z',
-        summary: 'Quarterly business review',
-        participants: ['James McArthur', 'Jane Smith', 'John Doe'],
-        source: 'Gong'
-      }
-    ],
-    metadata: {
-      dataSources: ['CRM', 'CSV Import'],
-      tags: ['Enterprise', 'Growth Account'],
-      dataQuality: 8,
-      version: 1
-    }
-  }
-}
+import { useCustomer, useCreateCustomer, useUpdateCustomer } from '../hooks'
+import { toast } from 'react-toastify'
 
 const CustomerForm = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const [customer, setCustomer] = useState<Customer | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
   const isEditMode = Boolean(id)
-
-  useEffect(() => {
-    // Simulate API request
-    const fetchCustomer = async () => {
-      setLoading(true)
-      try {
-        // Replace with actual API call
-        await new Promise(resolve => setTimeout(resolve, 800))
-        
-        if (id && MOCK_CUSTOMERS[id]) {
-          setCustomer(MOCK_CUSTOMERS[id])
-        } else if (id) {
-          // Handle not found
-          console.error('Customer not found')
-        } else {
-          // Create mode - initialize empty customer
-          // This would be replaced with a proper initialization function
-          setCustomer(null)
-        }
-      } catch (error) {
-        console.error('Error fetching customer:', error)
-      } finally {
-        setLoading(false)
-      }
+  
+  // Fetch customer data if in edit mode
+  const { 
+    data: existingCustomer, 
+    isLoading: isLoadingCustomer 
+  } = useCustomer(id || '', {
+    enabled: isEditMode
+  })
+  
+  // Form state
+  const [formData, setFormData] = useState<Partial<Customer>>({
+    name: '',
+    currentOwner: '',
+    accountDetails: {
+      healthStatus: 'Good' as HealthStatus,
+      renewalDate: '',
+      renewalQuarter: '',
+      currentARR: 0,
+      employees: 0,
+      mkCompanyEmployees: 0,
+      productsUsed: [],
+      primaryUseCase: '',
+      inCoreWorkflow: false,
+      customerNotified: false
+    },
+    executiveSummary: '',
+    keyStakeholders: [],
+    valueRealization: [],
+    activeProjects: [],
+    risks: [],
+    actionItems: [],
+    additionalNotes: '',
+    communications: [],
+    metadata: {
+      dataSources: [],
+      version: 1
     }
-
-    fetchCustomer()
-  }, [id])
-
+  })
+  
+  // Set form data when existing customer is loaded
+  useState(() => {
+    if (existingCustomer) {
+      setFormData(existingCustomer)
+    }
+  })
+  
+  // Mutations
+  const createMutation = useCreateCustomer()
+  const updateMutation = useUpdateCustomer()
+  
+  // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setSaving(true)
     
-    try {
-      // Simulate API request
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      // Navigate back to customer details or list
-      if (id) {
-        navigate(`/customers/${id}`)
-      } else {
-        navigate('/')
-      }
-    } catch (error) {
-      console.error('Error saving customer:', error)
-      setSaving(false)
+    if (isEditMode && existingCustomer) {
+      // Update existing customer
+      updateMutation.mutate({
+        ...existingCustomer,
+        ...formData
+      } as Customer, {
+        onSuccess: (updatedCustomer) => {
+          toast.success('Customer updated successfully')
+          navigate(`/customers/${updatedCustomer.id}`)
+        },
+        onError: (error) => {
+          toast.error('Failed to update customer')
+          console.error('Error updating customer:', error)
+        }
+      })
+    } else {
+      // Create new customer
+      createMutation.mutate(formData as Omit<Customer, 'id' | 'createdAt' | 'updatedAt'>, {
+        onSuccess: (newCustomer) => {
+          toast.success('Customer created successfully')
+          navigate(`/customers/${newCustomer.id}`)
+        },
+        onError: (error) => {
+          toast.error('Failed to create customer')
+          console.error('Error creating customer:', error)
+        }
+      })
     }
   }
-
-  if (loading) {
+  
+  // Handle form field changes (generic handler)
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value, type } = e.target
+    
+    // Handle boolean values (checkbox)
+    if (type === 'checkbox') {
+      const checkboxInput = e.target as HTMLInputElement
+      setFormData(prev => ({
+        ...prev,
+        [name]: checkboxInput.checked
+      }))
+      return
+    }
+    
+    // Handle nested field names (e.g., accountDetails.healthStatus)
+    if (name.includes('.')) {
+      const [parent, child] = name.split('.')
+      setFormData(prev => ({
+        ...prev,
+        [parent]: {
+          ...prev[parent as keyof typeof prev],
+          [child]: value
+        }
+      }))
+      return
+    }
+    
+    // Handle regular fields
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }))
+  }
+  
+  // Loading state
+  if (isEditMode && isLoadingCustomer) {
     return (
       <div className="flex justify-center items-center h-64">
         <LoadingSpinner size="large" />
@@ -172,7 +145,7 @@ const CustomerForm = () => {
             <ArrowLeftIcon className="h-5 w-5 text-gray-400 hover:text-gray-500" />
           </Link>
           <h1 className="text-2xl font-bold text-gray-900">
-            {isEditMode ? `Edit ${customer?.name}` : 'Add New Customer'}
+            {isEditMode ? `Edit ${existingCustomer?.name}` : 'Add New Customer'}
           </h1>
         </div>
       </div>
@@ -188,40 +161,223 @@ const CustomerForm = () => {
         </div>
 
         <form onSubmit={handleSubmit}>
-          <div className="border-t border-gray-200 px-4 py-5 sm:p-6">
-            <div className="text-center py-8">
-              <h3 className="text-lg font-medium text-gray-900">Customer Form</h3>
-              <p className="mt-2 text-sm text-gray-500">
-                This is a placeholder for the customer form. <br />
-                Full implementation coming in the next development phase.
-              </p>
-
-              {/* Buttons */}
-              <div className="mt-6 flex justify-end space-x-3">
-                <Link
-                  to={id ? `/customers/${id}` : '/'}
-                  className="inline-flex justify-center py-2 px-4 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-                >
-                  Cancel
-                </Link>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50"
-                >
-                  {saving ? (
-                    <>
-                      <LoadingSpinner size="small" color="white" className="mr-2" />
-                      Saving...
-                    </>
-                  ) : (
-                    'Save'
-                  )}
-                </button>
+          <div className="border-t border-gray-200 px-4 py-5 sm:p-6 space-y-6">
+            {/* Basic Information */}
+            <div>
+              <h4 className="text-md font-medium text-gray-900 mb-4">Basic Information</h4>
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                {/* Customer Name */}
+                <div>
+                  <label htmlFor="name" className="block text-sm font-medium text-gray-700">Company Name</label>
+                  <input
+                    type="text"
+                    name="name"
+                    id="name"
+                    value={formData.name || ''}
+                    onChange={handleChange}
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+                    required
+                  />
+                </div>
+                
+                {/* Customer Owner */}
+                <div>
+                  <label htmlFor="currentOwner" className="block text-sm font-medium text-gray-700">Customer Owner</label>
+                  <input
+                    type="text"
+                    name="currentOwner"
+                    id="currentOwner"
+                    value={formData.currentOwner || ''}
+                    onChange={handleChange}
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+                    required
+                  />
+                </div>
               </div>
+            </div>
+            
+            {/* Account Details */}
+            <div>
+              <h4 className="text-md font-medium text-gray-900 mb-4">Account Details</h4>
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                {/* Health Status */}
+                <div>
+                  <label htmlFor="accountDetails.healthStatus" className="block text-sm font-medium text-gray-700">Health Status</label>
+                  <select
+                    name="accountDetails.healthStatus"
+                    id="accountDetails.healthStatus"
+                    value={formData.accountDetails?.healthStatus || 'Good'}
+                    onChange={handleChange}
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+                  >
+                    <option value="Good">Good</option>
+                    <option value="Attention Needed">Attention Needed</option>
+                    <option value="At Risk">At Risk</option>
+                  </select>
+                </div>
+                
+                {/* Renewal Date */}
+                <div>
+                  <label htmlFor="accountDetails.renewalDate" className="block text-sm font-medium text-gray-700">Renewal Date</label>
+                  <input
+                    type="date"
+                    name="accountDetails.renewalDate"
+                    id="accountDetails.renewalDate"
+                    value={formData.accountDetails?.renewalDate?.substring(0, 10) || ''}
+                    onChange={handleChange}
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+                    required
+                  />
+                </div>
+                
+                {/* ARR */}
+                <div>
+                  <label htmlFor="accountDetails.currentARR" className="block text-sm font-medium text-gray-700">Annual Recurring Revenue</label>
+                  <div className="mt-1 relative rounded-md shadow-sm">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <span className="text-gray-500 sm:text-sm">$</span>
+                    </div>
+                    <input
+                      type="number"
+                      name="accountDetails.currentARR"
+                      id="accountDetails.currentARR"
+                      value={formData.accountDetails?.currentARR || ''}
+                      onChange={handleChange}
+                      className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 pl-7 pr-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+                      placeholder="0.00"
+                      required
+                    />
+                  </div>
+                </div>
+                
+                {/* Employees */}
+                <div>
+                  <label htmlFor="accountDetails.employees" className="block text-sm font-medium text-gray-700">Total Employees</label>
+                  <input
+                    type="number"
+                    name="accountDetails.employees"
+                    id="accountDetails.employees"
+                    value={formData.accountDetails?.employees || ''}
+                    onChange={handleChange}
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+                  />
+                </div>
+                
+                {/* Primary Use Case */}
+                <div className="sm:col-span-2">
+                  <label htmlFor="accountDetails.primaryUseCase" className="block text-sm font-medium text-gray-700">Primary Use Case</label>
+                  <input
+                    type="text"
+                    name="accountDetails.primaryUseCase"
+                    id="accountDetails.primaryUseCase"
+                    value={formData.accountDetails?.primaryUseCase || ''}
+                    onChange={handleChange}
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+                  />
+                </div>
+                
+                {/* Account Flags */}
+                <div className="flex space-x-6">
+                  <div className="flex items-start">
+                    <div className="flex items-center h-5">
+                      <input
+                        id="accountDetails.inCoreWorkflow"
+                        name="accountDetails.inCoreWorkflow"
+                        type="checkbox"
+                        checked={formData.accountDetails?.inCoreWorkflow || false}
+                        onChange={handleChange}
+                        className="focus:ring-primary-500 h-4 w-4 text-primary-600 border-gray-300 rounded"
+                      />
+                    </div>
+                    <div className="ml-3 text-sm">
+                      <label htmlFor="accountDetails.inCoreWorkflow" className="font-medium text-gray-700">In Core Workflow</label>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-start">
+                    <div className="flex items-center h-5">
+                      <input
+                        id="accountDetails.customerNotified"
+                        name="accountDetails.customerNotified"
+                        type="checkbox"
+                        checked={formData.accountDetails?.customerNotified || false}
+                        onChange={handleChange}
+                        className="focus:ring-primary-500 h-4 w-4 text-primary-600 border-gray-300 rounded"
+                      />
+                    </div>
+                    <div className="ml-3 text-sm">
+                      <label htmlFor="accountDetails.customerNotified" className="font-medium text-gray-700">Customer Notified</label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Executive Summary */}
+            <div>
+              <h4 className="text-md font-medium text-gray-900 mb-4">Executive Summary</h4>
+              <div>
+                <label htmlFor="executiveSummary" className="sr-only">Executive Summary</label>
+                <textarea
+                  id="executiveSummary"
+                  name="executiveSummary"
+                  rows={4}
+                  value={formData.executiveSummary || ''}
+                  onChange={handleChange}
+                  className="shadow-sm focus:ring-primary-500 focus:border-primary-500 block w-full sm:text-sm border border-gray-300 rounded-md"
+                  placeholder="Provide a summary of the customer relationship, key initiatives, and overall health..."
+                />
+              </div>
+            </div>
+            
+            {/* Additional Notes */}
+            <div>
+              <h4 className="text-md font-medium text-gray-900 mb-4">Additional Notes</h4>
+              <div>
+                <label htmlFor="additionalNotes" className="sr-only">Additional Notes</label>
+                <textarea
+                  id="additionalNotes"
+                  name="additionalNotes"
+                  rows={3}
+                  value={formData.additionalNotes || ''}
+                  onChange={handleChange}
+                  className="shadow-sm focus:ring-primary-500 focus:border-primary-500 block w-full sm:text-sm border border-gray-300 rounded-md"
+                  placeholder="Any additional notes or context about this customer..."
+                />
+              </div>
+            </div>
+
+            {/* Form buttons */}
+            <div className="pt-5 border-t border-gray-200 flex justify-end space-x-3">
+              <Link
+                to={id ? `/customers/${id}` : '/'}
+                className="inline-flex justify-center py-2 px-4 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+              >
+                Cancel
+              </Link>
+              <button
+                type="submit"
+                disabled={createMutation.isLoading || updateMutation.isLoading}
+                className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50"
+              >
+                {(createMutation.isLoading || updateMutation.isLoading) ? (
+                  <>
+                    <LoadingSpinner size="small" color="white" className="mr-2" />
+                    Saving...
+                  </>
+                ) : (
+                  'Save'
+                )}
+              </button>
             </div>
           </div>
         </form>
+      </div>
+      
+      <div className="mt-6 text-center">
+        <p className="text-sm text-gray-500">
+          Note: This form implements basic customer information. Additional form sections for stakeholders, projects, risks, etc. will be added in the next development phase.
+        </p>
       </div>
     </div>
   )
