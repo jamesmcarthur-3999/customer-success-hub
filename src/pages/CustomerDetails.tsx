@@ -1,135 +1,59 @@
-import { useState, useEffect } from 'react'
-import { useParams, Link } from 'react-router-dom'
-import { PencilIcon } from '@heroicons/react/24/outline'
-import { Customer, HealthStatus } from '../types/customer'
+import { useState } from 'react'
+import { useParams, Link, useNavigate } from 'react-router-dom'
+import { PencilIcon, ArrowLeftIcon, TrashIcon } from '@heroicons/react/24/outline'
+import { HealthStatus } from '../types/customer'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
-
-// Mock data - will be replaced with actual data fetching
-const MOCK_CUSTOMERS: { [key: string]: Customer } = {
-  '1': {
-    id: '1',
-    name: 'Acme Inc',
-    createdAt: '2024-01-15T12:00:00Z',
-    updatedAt: '2024-03-10T14:30:00Z',
-    currentOwner: 'James McArthur',
-    accountDetails: {
-      healthStatus: 'Good',
-      renewalDate: '2025-06-15',
-      renewalQuarter: '2025-Q2',
-      currentARR: 120000,
-      employees: 500,
-      mkCompanyEmployees: 450,
-      productsUsed: ['Scoring', 'Copilot'],
-      primaryUseCase: 'Lead qualification and account-level engagement',
-      inCoreWorkflow: true,
-      customerNotified: true
-    },
-    keyStakeholders: [
-      {
-        name: 'Jane Smith',
-        title: 'VP of Marketing',
-        role: 'Executive Sponsor',
-        email: 'jane.smith@acme.com'
-      },
-      {
-        name: 'John Doe',
-        title: 'Marketing Operations Manager',
-        role: 'Primary Contact',
-        email: 'john.doe@acme.com'
-      }
-    ],
-    executiveSummary: 'Acme Inc has been a customer since 2024 and is using our platform for lead qualification and account-based marketing initiatives. They have shown strong adoption across their marketing team and are seeing positive results with a 25% increase in qualified leads.',
-    valueRealization: [
-      'Increased lead qualification efficiency by 30%',
-      'Improved sales-marketing alignment',
-      'Reduced time to qualify leads by 45%',
-      'Better targeting for ABM campaigns'
-    ],
-    activeProjects: [
-      {
-        name: 'Copilot Rollout',
-        description: 'Expanding Copilot usage across the entire marketing team',
-        status: 'In Progress',
-        targetDate: '2025-04-15'
-      },
-      {
-        name: 'Data Integration Enhancement',
-        description: 'Improving data flow from their CRM to enhance scoring accuracy',
-        status: 'Not Started',
-        targetDate: '2025-05-01'
-      }
-    ],
-    risks: [
-      {
-        description: 'New marketing leadership may re-evaluate tools',
-        impact: 'Medium',
-        mitigation: 'Schedule executive briefing with new CMO in Q2',
-        status: 'Active'
-      }
-    ],
-    actionItems: [
-      {
-        description: 'Schedule Q2 business review',
-        owner: 'MadKudu',
-        deadline: '2025-04-01',
-        status: 'Not Started'
-      },
-      {
-        description: 'Provide onboarding for new team members',
-        owner: 'Joint',
-        deadline: '2025-03-29',
-        status: 'In Progress'
-      }
-    ],
-    additionalNotes: 'Acme is considering expanding usage to their APAC region in Q3 2025.',
-    communications: [
-      {
-        type: 'Call',
-        date: '2025-03-10T14:00:00Z',
-        summary: 'Quarterly business review',
-        participants: ['James McArthur', 'Jane Smith', 'John Doe'],
-        source: 'Gong'
-      }
-    ],
-    metadata: {
-      dataSources: ['CRM', 'CSV Import'],
-      tags: ['Enterprise', 'Growth Account'],
-      dataQuality: 8,
-      version: 1
-    }
-  }
-}
+import { useCustomer, useDeleteCustomer } from '../hooks'
+import { toast } from 'react-toastify'
 
 const CustomerDetails = () => {
   const { id } = useParams<{ id: string }>()
-  const [customer, setCustomer] = useState<Customer | null>(null)
-  const [loading, setLoading] = useState(true)
+  const navigate = useNavigate()
+  
+  // Fetch customer data using React Query
+  const { 
+    data: customer, 
+    isLoading, 
+    error 
+  } = useCustomer(id || '')
+  
+  // Delete customer mutation
+  const deleteMutation = useDeleteCustomer()
 
-  useEffect(() => {
-    // Simulate API request
-    const fetchCustomer = async () => {
-      setLoading(true)
-      try {
-        // Replace with actual API call
-        await new Promise(resolve => setTimeout(resolve, 800))
-        
-        if (id && MOCK_CUSTOMERS[id]) {
-          setCustomer(MOCK_CUSTOMERS[id])
-        } else {
-          // Handle not found
-          console.error('Customer not found')
-        }
-      } catch (error) {
-        console.error('Error fetching customer:', error)
-      } finally {
-        setLoading(false)
-      }
+  // Helper function to render health status badge
+  const renderHealthStatus = (status: HealthStatus) => {
+    const colors = {
+      'Good': 'bg-success-100 text-success-800',
+      'Attention Needed': 'bg-warning-100 text-warning-800',
+      'At Risk': 'bg-danger-100 text-danger-800',
     }
+    
+    return (
+      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium ${colors[status]}`}>
+        {status}
+      </span>
+    )
+  }
+  
+  // Handle customer deletion
+  const handleDelete = () => {
+    if (!id) return
+    
+    if (window.confirm('Are you sure you want to delete this customer? This action cannot be undone.')) {
+      deleteMutation.mutate(id, {
+        onSuccess: () => {
+          toast.success('Customer deleted successfully')
+          navigate('/')
+        },
+        onError: (err) => {
+          toast.error('Failed to delete customer')
+          console.error('Error deleting customer:', err)
+        }
+      })
+    }
+  }
 
-    fetchCustomer()
-  }, [id])
-
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex justify-center items-center h-64">
         <LoadingSpinner size="large" />
@@ -137,7 +61,7 @@ const CustomerDetails = () => {
     )
   }
 
-  if (!customer) {
+  if (error || !customer) {
     return (
       <div className="text-center py-12">
         <h2 className="text-2xl font-semibold text-gray-900">Customer not found</h2>
@@ -154,24 +78,16 @@ const CustomerDetails = () => {
     )
   }
 
-  // Helper function to render health status badge
-  const renderHealthStatus = (status: HealthStatus) => {
-    const colors = {
-      'Good': 'bg-success-100 text-success-800',
-      'Attention Needed': 'bg-warning-100 text-warning-800',
-      'At Risk': 'bg-danger-100 text-danger-800',
-    }
-    
-    return (
-      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium ${colors[status]}`}>
-        {status}
-      </span>
-    )
-  }
-
   return (
     <div className="pb-12">
       <div className="mb-6">
+        <div className="flex items-center mb-4">
+          <Link to="/" className="text-primary-600 hover:text-primary-800 flex items-center">
+            <ArrowLeftIcon className="h-4 w-4 mr-1" />
+            Back to Dashboard
+          </Link>
+        </div>
+        
         <div className="flex justify-between items-start">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">{customer.name}</h1>
@@ -182,13 +98,27 @@ const CustomerDetails = () => {
               </span>
             </div>
           </div>
-          <Link
-            to={`/customers/${customer.id}/edit`}
-            className="btn btn-secondary flex items-center"
-          >
-            <PencilIcon className="h-4 w-4 mr-1" />
-            Edit
-          </Link>
+          <div className="flex space-x-2">
+            <button
+              onClick={handleDelete}
+              className="btn btn-danger flex items-center"
+              disabled={deleteMutation.isLoading}
+            >
+              {deleteMutation.isLoading ? (
+                <LoadingSpinner size="small" />
+              ) : (
+                <TrashIcon className="h-4 w-4 mr-1" />
+              )}
+              Delete
+            </button>
+            <Link
+              to={`/customers/${customer.id}/edit`}
+              className="btn btn-secondary flex items-center"
+            >
+              <PencilIcon className="h-4 w-4 mr-1" />
+              Edit
+            </Link>
+          </div>
         </div>
       </div>
 
@@ -230,6 +160,29 @@ const CustomerDetails = () => {
                 {customer.accountDetails.primaryUseCase}
               </dd>
             </div>
+            <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+              <dt className="text-sm font-medium text-gray-500">Account Details</dt>
+              <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <span className="block text-xs text-gray-500">Employees</span>
+                    <span>{customer.accountDetails.employees.toLocaleString()}</span>
+                  </div>
+                  <div>
+                    <span className="block text-xs text-gray-500">MK Employees</span>
+                    <span>{customer.accountDetails.mkCompanyEmployees.toLocaleString()}</span>
+                  </div>
+                  <div>
+                    <span className="block text-xs text-gray-500">In Core Workflow</span>
+                    <span>{customer.accountDetails.inCoreWorkflow ? 'Yes' : 'No'}</span>
+                  </div>
+                  <div>
+                    <span className="block text-xs text-gray-500">Customer Notified</span>
+                    <span>{customer.accountDetails.customerNotified ? 'Yes' : 'No'}</span>
+                  </div>
+                </div>
+              </dd>
+            </div>
           </dl>
         </div>
       </div>
@@ -257,22 +210,190 @@ const CustomerDetails = () => {
           </ul>
         </div>
       </div>
-
-      {/* This is a placeholder for the customer details page.
-          In future iterations, we'll implement:
-          - Full customer information display
-          - Tabs for different sections (Projects, Communications, etc.)
-          - Edit functionality
-          - AI summary generation
-          - etc.
-      */}
-      <div className="text-center py-8 bg-gray-50 rounded-lg border border-gray-200">
-        <h3 className="text-lg font-medium text-gray-900">Customer Details Page</h3>
-        <p className="mt-2 text-sm text-gray-500">
-          This is a basic placeholder for the customer details page. <br />
-          Full implementation coming in the next development phase.
-        </p>
+      
+      {/* Key Stakeholders */}
+      <div className="bg-white shadow overflow-hidden sm:rounded-lg mb-6">
+        <div className="px-4 py-5 sm:px-6">
+          <h3 className="text-lg leading-6 font-medium text-gray-900">Key Stakeholders</h3>
+        </div>
+        <div className="border-t border-gray-200">
+          <ul className="divide-y divide-gray-200">
+            {customer.keyStakeholders.map((stakeholder, index) => (
+              <li key={index} className="px-4 py-4 sm:px-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">{stakeholder.name}</p>
+                    <p className="text-sm text-gray-500">{stakeholder.title}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm text-gray-500">{stakeholder.role}</p>
+                    {stakeholder.email && (
+                      <p className="text-sm text-primary-600">{stakeholder.email}</p>
+                    )}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
+
+      {/* Active Projects */}
+      <div className="bg-white shadow overflow-hidden sm:rounded-lg mb-6">
+        <div className="px-4 py-5 sm:px-6">
+          <h3 className="text-lg leading-6 font-medium text-gray-900">Active Projects</h3>
+        </div>
+        <div className="border-t border-gray-200">
+          <ul className="divide-y divide-gray-200">
+            {customer.activeProjects.map((project, index) => (
+              <li key={index} className="px-4 py-4 sm:px-6">
+                <div>
+                  <div className="flex justify-between">
+                    <p className="text-sm font-medium text-gray-900">{project.name}</p>
+                    <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+                      {project.status}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-sm text-gray-500">{project.description}</p>
+                  {project.targetDate && (
+                    <p className="mt-1 text-xs text-gray-500">
+                      Target completion: {new Date(project.targetDate).toLocaleDateString()}
+                    </p>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+
+      {/* Risks and Action Items */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        {/* Risks */}
+        <div className="bg-white shadow overflow-hidden sm:rounded-lg">
+          <div className="px-4 py-5 sm:px-6">
+            <h3 className="text-lg leading-6 font-medium text-gray-900">Risks</h3>
+          </div>
+          <div className="border-t border-gray-200">
+            <ul className="divide-y divide-gray-200">
+              {customer.risks.length > 0 ? (
+                customer.risks.map((risk, index) => (
+                  <li key={index} className="px-4 py-4 sm:px-6">
+                    <div>
+                      <div className="flex justify-between">
+                        <p className="text-sm font-medium text-gray-900">{risk.description}</p>
+                        <span className={`text-xs font-medium px-2 py-1 rounded-full ${
+                          risk.impact === 'High' ? 'bg-danger-100 text-danger-800' :
+                          risk.impact === 'Medium' ? 'bg-warning-100 text-warning-800' :
+                          'bg-success-100 text-success-800'
+                        }`}>
+                          {risk.impact}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-sm text-gray-500">
+                        <span className="font-medium">Mitigation:</span> {risk.mitigation}
+                      </p>
+                      <p className="mt-1 text-xs text-gray-500">
+                        Status: {risk.status}
+                      </p>
+                    </div>
+                  </li>
+                ))
+              ) : (
+                <li className="px-4 py-4 sm:px-6 text-sm text-gray-500">
+                  No risks identified.
+                </li>
+              )}
+            </ul>
+          </div>
+        </div>
+
+        {/* Action Items */}
+        <div className="bg-white shadow overflow-hidden sm:rounded-lg">
+          <div className="px-4 py-5 sm:px-6">
+            <h3 className="text-lg leading-6 font-medium text-gray-900">Action Items</h3>
+          </div>
+          <div className="border-t border-gray-200">
+            <ul className="divide-y divide-gray-200">
+              {customer.actionItems.length > 0 ? (
+                customer.actionItems.map((action, index) => (
+                  <li key={index} className="px-4 py-4 sm:px-6">
+                    <div>
+                      <div className="flex justify-between">
+                        <p className="text-sm font-medium text-gray-900">{action.description}</p>
+                        <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+                          {action.status}
+                        </span>
+                      </div>
+                      <div className="mt-1 flex justify-between">
+                        <p className="text-sm text-gray-500">
+                          Owner: {action.owner}
+                        </p>
+                        {action.deadline && (
+                          <p className="text-xs text-gray-500">
+                            Deadline: {new Date(action.deadline).toLocaleDateString()}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </li>
+                ))
+              ) : (
+                <li className="px-4 py-4 sm:px-6 text-sm text-gray-500">
+                  No action items.
+                </li>
+              )}
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      {/* Communications */}
+      <div className="bg-white shadow overflow-hidden sm:rounded-lg mb-6">
+        <div className="px-4 py-5 sm:px-6">
+          <h3 className="text-lg leading-6 font-medium text-gray-900">Recent Communications</h3>
+        </div>
+        <div className="border-t border-gray-200">
+          <ul className="divide-y divide-gray-200">
+            {customer.communications.length > 0 ? (
+              customer.communications.map((comm, index) => (
+                <li key={index} className="px-4 py-4 sm:px-6">
+                  <div>
+                    <div className="flex justify-between">
+                      <p className="text-sm font-medium text-gray-900">{comm.summary}</p>
+                      <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+                        {comm.type}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-sm text-gray-500">
+                      {new Date(comm.date).toLocaleString()}
+                    </p>
+                    <p className="mt-1 text-xs text-gray-500">
+                      Participants: {comm.participants.join(', ')}
+                    </p>
+                  </div>
+                </li>
+              ))
+            ) : (
+              <li className="px-4 py-4 sm:px-6 text-sm text-gray-500">
+                No communications recorded.
+              </li>
+            )}
+          </ul>
+        </div>
+      </div>
+
+      {/* Additional Notes */}
+      {customer.additionalNotes && (
+        <div className="bg-white shadow overflow-hidden sm:rounded-lg mb-6">
+          <div className="px-4 py-5 sm:px-6">
+            <h3 className="text-lg leading-6 font-medium text-gray-900">Additional Notes</h3>
+          </div>
+          <div className="border-t border-gray-200 px-4 py-5 sm:px-6">
+            <p className="text-sm text-gray-500">{customer.additionalNotes}</p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
